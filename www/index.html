@@ -344,7 +344,7 @@
                     <input type="password" id="haToken" placeholder="Your HA access token">
                 </div>
             </div>
-            <button class="btn btn-primary" onclick="testConnection()">Test Connection</button>
+            <button class="btn btn-primary" onclick="testConnection()">Connect</button>
             <span id="connectionStatus" class="connection-status status-disconnected">Not Connected</span>
         </div>
 
@@ -383,8 +383,8 @@
             </div>
         </div>
 
-        <!-- Device Templates -->
-        <div class="config-section">
+        <!-- Device Templates (temporarily hidden) -->
+        <div class="config-section" style="display: none;">
             <h2>📋 Device Templates</h2>
             <p>Select a template to auto-populate commands for common devices:</p>
             <div class="device-templates">
@@ -435,7 +435,7 @@
                 <!-- Commands will be populated here -->
             </div>
 
-            <div style="margin-top: 20px; text-align: center;">
+            <div style="margin-top: 20px; text-align: center; display: none;">
                 <button class="btn btn-success" onclick="learnAllCommands()">🎯 Learn All Commands</button>
                 <button class="btn btn-warning" onclick="testAllCommands()">🧪 Test All Commands</button>
                 <button class="btn btn-danger" onclick="clearAllCommands()">🗑️ Clear All</button>
@@ -471,6 +471,8 @@
         let selectedTemplate = null; // This will hold the key of the selected template, e.g., 'tv'
         let currentDeviceKey = '';
         let areasLoaded = false;
+        let pollingInterval = null;
+        let lastInstruction = '';
 
         // --- Utility Helpers ---
         function sanitize(str) {
@@ -483,14 +485,6 @@
                 .replace(/^_+|_+$/g, '');
         }
 
-        const commandTemplates = {
-            tv: ['power', 'volume_up', 'volume_down', 'channel_up', 'channel_down', 'input_hdmi1', 'input_hdmi2'],
-            soundbar: ['power', 'volume_up', 'volume_down', 'mute', 'input_optical', 'input_bluetooth'],
-            fan: ['power', 'speed_1', 'speed_2', 'speed_3', 'oscillate'],
-            light: ['power_on', 'power_off', 'brightness_up', 'brightness_down', 'color_white'],
-            ac: ['power_on', 'power_off', 'temp_up', 'temp_down', 'fan_speed_auto', 'fan_speed_low', 'fan_speed_high', 'mode_cool', 'mode_heat'],
-            custom: []
-        };
         let currentlyLearningIndex = -1;
         let learningPhase = 'idle'; // idle, sweeping, learning
 
@@ -574,6 +568,47 @@
             }
         }
 
+        function startPolling(commandIndex) {
+            // Ensure any existing poller is stopped
+            stopPolling();
+            currentlyLearningIndex = commandIndex;
+            learningPhase = 'sweeping';
+            lastInstruction = '';
+
+            const pollStartTime = Date.now();
+            const TIMEOUT = 45000; // 45 seconds
+
+            pollingInterval = setInterval(() => {
+                if (Date.now() - pollStartTime > TIMEOUT) {
+                    log('Polling timed out.', 'error');
+                    stopPolling();
+                    updateLearningStatus(commandIndex, 'error', 'Learning process timed out.');
+                    return;
+                }
+                if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+                    try {
+                        wsConnection.send(JSON.stringify({ id: ++wsMessageId, type: 'persistent_notification/get' }));
+                    } catch (e) {
+                        log(`Failed to poll notifications: ${e.message}`, 'error');
+                    }
+                } else {
+                    log('WebSocket not open; waiting to poll notifications...');
+                }
+            }, 1000);
+            log(`Started polling for command: ${commands[commandIndex]?.fullName || commandIndex}`);
+        }
+
+        function stopPolling() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+            currentlyLearningIndex = -1;
+            learningPhase = 'idle';
+            lastInstruction = '';
+            log('Stopped polling.');
+        }
+
         function loadFromStorage() {
              try {
                 const data = JSON.parse(localStorage.getItem('haCommandHelperConfig'));
@@ -593,7 +628,9 @@
             }
         }
 
-        function populateCommandsForSelectedRoom() {
+        function populateCommandsForSelectedRoom(evtOrFlag) {
+            // If called from template loading, we pass true explicitly.
+            const fromTemplate = evtOrFlag === true;
             const selectedRoom = document.getElementById('roomName').value; // This is already sanitized from populateAreas
             const deviceName = sanitize(document.getElementById('deviceName').value);
             if (!selectedRoom || !deviceName) {
@@ -618,19 +655,19 @@
                 }));
                 log(`Populated ${commands.length} learned commands for device '${matchingKey}'`);
             } else {
-                // No existing device found, check for template commands
+                // No existing device found
                 log(`No matching command key found for '${searchKeyPart}'.`);
                 currentDeviceKey = searchKeyPart; // Set the key for the new device
-                if (commands.length > 0) {
-                    // Commands were likely loaded from a template
+                if (fromTemplate && commands.length > 0) {
+                    // We just loaded a template; apply it to this device key
                     log(`Using ${commands.length} commands from template for new device '${currentDeviceKey}'.`);
                     commands.forEach(command => {
                         command.status = 'pending'; // Mark as unlearned
                         command.fullName = `${currentDeviceKey}_${command.name}`;
                     });
                 } else {
-                    // No template and no learned commands
-                    log('No template commands found. Command list is empty.');
+                    // Clear commands on room/device change to avoid carrying over from previous room
+                    log('Clearing commands for new room/device since no learned/template commands apply.');
                     commands = [];
                 }
             }
@@ -893,43 +930,17 @@
             wsConnection.onclose = () => {
                 log('WebSocket disconnected');
                 wsConnection = null;
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    currentlyLearningIndex = -1;
+                    learningPhase = 'idle';
+                    log('Stopped polling.');
+                }
             };
+
         }
 
-        // --- Polling Logic ---
-        function startPolling(commandIndex) {
-            stopPolling();
-            currentlyLearningIndex = commandIndex;
-            learningPhase = 'sweeping';
-            lastInstruction = '';
-
-            const pollStartTime = Date.now();
-            const TIMEOUT = 45000; // 45 seconds
-
-            pollingInterval = setInterval(() => {
-                if (Date.now() - pollStartTime > TIMEOUT) {
-                    log('Polling timed out.', 'error');
-                    // This will be caught by the learnCommand's logic
-                    stopPolling();
-                    updateLearningStatus(commandIndex, 'error', 'Learning process timed out.');
-                    return;
-                }
-                if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-                    wsConnection.send(JSON.stringify({ id: messageId++, type: 'persistent_notification/get' }));
-                }
-            }, 1000);
-            log(`Started polling for command: ${commands[commandIndex].fullName}`);
-        }
-
-        function stopPolling() {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-                currentlyLearningIndex = -1;
-                learningPhase = 'idle';
-                log('Stopped polling.');
-            }
-        }
 
         function handleNotificationPoll(notifications) {
             if (currentlyLearningIndex === -1) return;
@@ -937,14 +948,29 @@
             const command = commands[currentlyLearningIndex];
             const deviceFullName = getDeviceFullName();
             const commandName = command.name;
+            const fullCommandName = `${deviceFullName}_${commandName}`;
 
             log(`Poll result: Found ${notifications.length} notifications.`);
+            // Diagnostic logging: titles and snippets to verify backend messages
+            try {
+                const summary = notifications.map(n => ({ t: n.title, m: (n.message || '').slice(0, 120) }));
+                log(`Notifications: ${JSON.stringify(summary)}`);
+            } catch (e) {
+                // ignore JSON issues
+            }
 
             if (learningPhase === 'sweeping') {
-                const sweepNotification = notifications.find(n => 
-                    n.title === 'Sweep frequency' && 
-                    n.message.includes(`'${commandName}'`)
-                );
+                const nameMatchers = [
+                    `'${commandName}'`,
+                    `${commandName}`,
+                    `'${fullCommandName}'`,
+                    `${fullCommandName}`
+                ];
+                const sweepNotification = notifications.find(n => {
+                    if (n.title !== 'Sweep frequency') return false;
+                    const msg = n.message || '';
+                    return nameMatchers.some(k => msg.includes(k));
+                });
                 if (sweepNotification) {
                     const instruction = "Press and hold the remote button...";
                     if (lastInstruction !== instruction) {
@@ -958,10 +984,17 @@
                     lastInstruction = instruction;
                 }
             } else if (learningPhase === 'learning') {
-                const learnNotification = notifications.find(n => 
-                    n.title === 'Learn command' && 
-                    n.message.includes(`'${commandName}'`)
-                );
+                const nameMatchers = [
+                    `'${commandName}'`,
+                    `${commandName}`,
+                    `'${fullCommandName}'`,
+                    `${fullCommandName}`
+                ];
+                const learnNotification = notifications.find(n => {
+                    if (n.title !== 'Learn command') return false;
+                    const msg = n.message || '';
+                    return nameMatchers.some(k => msg.includes(k));
+                });
                 if (learnNotification) {
                     const instruction = "Press the button briefly.";
                     if (lastInstruction !== instruction) {
@@ -970,12 +1003,11 @@
                     }
                 } else if (lastInstruction.startsWith('Press the button')) {
                     learningPhase = 'completed';
-                    lastInstruction = ''; 
+                    lastInstruction = '';
                     log('Final learning step completed by user.');
                 }
             }
         }
-
 
         async function dismissNotification(notificationId) {
              try {
@@ -1098,7 +1130,7 @@
             log(`Loaded ${commands.length} commands from '${selectedTemplate}' template.`);
             
             // Now, trigger the population logic which will handle both new and existing devices
-            populateCommandsForSelectedRoom();
+            populateCommandsForSelectedRoom(true);
         }
 
         function getDeviceFullName() {
@@ -1167,7 +1199,7 @@
                         <div class="command-actions">
                             <button class="btn btn-primary btn-small" onclick="learnCommand(${index})">Learn</button>
                             <button class="btn btn-warning btn-small" onclick="testCommand(${index})">Test</button>
-                            <button class="btn btn-danger btn-small" onclick="removeCommand(${index})">Remove</button>
+                            <button class="btn btn-danger btn-small" onclick="removeCommand(${index})" style="display: none;">Remove</button>
                         </div>`;
                 }
                 container.appendChild(item);
@@ -1316,40 +1348,6 @@
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        function updateLearningStatus(index, type, message) {
-            const commandItem = document.getElementById('commandList').children[index];
-            if (!commandItem) return;
-
-            const container = commandItem.querySelector('.learning-progress');
-            if (!container) return;
-
-            const alertBox = container.parentElement;
-
-            if (type === 'instruction') {
-                container.innerHTML = `Status: ${message}`;
-            } else if (type === 'success' || type === 'error') {
-                const command = commands[index];
-                command.status = (type === 'success') ? 'learned' : 'failed';
-                
-                alertBox.classList.remove('alert-info');
-                alertBox.classList.add(type === 'success' ? 'alert-success' : 'alert-error');
-                
-                container.innerHTML = `
-                    <strong>${type === 'success' ? message : 'Error: ' + message}</strong>
-                    <div style="margin-top: 10px;">
-                        <button class="btn btn-primary btn-small" onclick="updateCommandList()">OK</button>
-                    </div>`;
-
-                const cancelButtonContainer = alertBox.querySelector(`button[onclick^="cancelLearning"]`);
-                if (cancelButtonContainer) {
-                    cancelButtonContainer.parentElement.remove();
-                }
-
-                stopPolling();
-                updateProgress();
-                saveToStorage();
-            }
-        }
     </script>
 </body>
 </html>
