@@ -464,11 +464,33 @@
         // --- Application State ---
         let haUrl = '';
         let haToken = '';
-        let selectedTemplate = '';
         let wsConnection = null;
         let wsMessageId = 0;
-        let pollingInterval = null;
         let commands = [];
+        let allLearnedCommands = {};
+        let selectedTemplate = null; // This will hold the key of the selected template, e.g., 'tv'
+        let currentDeviceKey = '';
+        let areasLoaded = false;
+
+        // --- Utility Helpers ---
+        function sanitize(str) {
+            // Convert to a safe slug for IDs/keys while keeping the original label for display
+            if (str === undefined || str === null) return '';
+            return String(str)
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+        }
+
+        const commandTemplates = {
+            tv: ['power', 'volume_up', 'volume_down', 'channel_up', 'channel_down', 'input_hdmi1', 'input_hdmi2'],
+            soundbar: ['power', 'volume_up', 'volume_down', 'mute', 'input_optical', 'input_bluetooth'],
+            fan: ['power', 'speed_1', 'speed_2', 'speed_3', 'oscillate'],
+            light: ['power_on', 'power_off', 'brightness_up', 'brightness_down', 'color_white'],
+            ac: ['power_on', 'power_off', 'temp_up', 'temp_down', 'fan_speed_auto', 'fan_speed_low', 'fan_speed_high', 'mode_cool', 'mode_heat'],
+            custom: []
+        };
         let currentlyLearningIndex = -1;
         let learningPhase = 'idle'; // idle, sweeping, learning
 
@@ -500,6 +522,24 @@
             log('Application loaded successfully');
         });
 
+        function showAlert(message, type = 'error') {
+            const container = document.querySelector('.container');
+            if (!container) return;
+
+            const alertEl = document.createElement('div');
+            alertEl.className = `alert alert-${type}`;
+            alertEl.textContent = message;
+
+            // Insert it after the main header
+            container.insertBefore(alertEl, container.children[1]);
+
+            setTimeout(() => {
+                alertEl.style.transition = 'opacity 0.5s ease';
+                alertEl.style.opacity = '0';
+                setTimeout(() => alertEl.remove(), 500);
+            }, 5000); // Remove after 5 seconds
+        }
+
         function setupEventListeners() {
             document.querySelectorAll('.template-card').forEach(card => {
                 card.addEventListener('click', function() {
@@ -508,6 +548,10 @@
                     selectedTemplate = this.dataset.template;
                 });
             });
+
+            document.getElementById('roomName').addEventListener('change', populateCommandsForSelectedRoom);
+            document.getElementById('broadlinkDevice').addEventListener('change', fetchLearnedCommands);
+
             ['haUrl', 'haToken', 'roomName', 'deviceName', 'commandType'].forEach(id => {
                 document.getElementById(id).addEventListener('input', saveToStorage);
             });
@@ -549,6 +593,53 @@
             }
         }
 
+        function populateCommandsForSelectedRoom() {
+            const selectedRoom = document.getElementById('roomName').value; // This is already sanitized from populateAreas
+            const deviceName = sanitize(document.getElementById('deviceName').value);
+            if (!selectedRoom || !deviceName) {
+                log('Room or device name is missing, cannot populate commands.');
+                return;
+            }
+            const searchKeyPart = `${selectedRoom}_${deviceName}`;
+
+            log(`Searching for command key containing: '${searchKeyPart}'`);
+
+            const matchingKey = Object.keys(allLearnedCommands).find(key => key.includes(searchKeyPart));
+
+            if (matchingKey) {
+                // Device with learned commands found
+                log(`Found matching device key: '${matchingKey}'`);
+                currentDeviceKey = matchingKey;
+                const commandNames = allLearnedCommands[matchingKey] || [];
+                commands = commandNames.map(commandName => ({
+                    name: commandName,
+                    status: 'learned',
+                    fullName: `${matchingKey}_${commandName}`,
+                }));
+                log(`Populated ${commands.length} learned commands for device '${matchingKey}'`);
+            } else {
+                // No existing device found, check for template commands
+                log(`No matching command key found for '${searchKeyPart}'.`);
+                currentDeviceKey = searchKeyPart; // Set the key for the new device
+                if (commands.length > 0) {
+                    // Commands were likely loaded from a template
+                    log(`Using ${commands.length} commands from template for new device '${currentDeviceKey}'.`);
+                    commands.forEach(command => {
+                        command.status = 'pending'; // Mark as unlearned
+                        command.fullName = `${currentDeviceKey}_${command.name}`;
+                    });
+                } else {
+                    // No template and no learned commands
+                    log('No template commands found. Command list is empty.');
+                    commands = [];
+                }
+            }
+
+            updateCommandList();
+            updateProgress();
+            saveToStorage();
+        }
+
         // --- Home Assistant API Functions ---
         async function testConnection() {
             haUrl = document.getElementById('haUrl').value;
@@ -574,8 +665,9 @@
                     statusEl.textContent = 'Connected';
                     statusEl.className = 'connection-status status-connected';
                     log('Successfully connected to Home Assistant');
+                    connectWebSocket(); // Connect WebSocket to load areas and handle events
                     await loadBroadlinkDevices();
-                    connectWebSocket();
+                    // Learned commands will be fetched when a device is selected. 
                     // loadAreas will be called after websocket is connected
                 } else {
                     throw new Error(`HTTP ${response.status}`);
@@ -583,17 +675,31 @@
             } catch (error) {
                 statusEl.textContent = 'Connection Failed';
                 statusEl.className = 'connection-status status-disconnected';
-                log(`❌ Connection failed: ${error.message}`);
+                log(`❌ Connection failed: ${error.message}`, 'error');
+                console.error('Full connection error object:', error);
                 showAlert('Connection failed. Check URL and token.', 'error');
             }
         }
 
         function loadAreas() {
+            areasLoaded = false;
+            log('Loading areas...');
             if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
                 wsConnection.send(JSON.stringify({
                     id: ++wsMessageId,
                     type: 'config/area_registry/list'
                 }));
+                // If WS path doesn't return quickly, fall back to HTTP
+                setTimeout(() => {
+                    if (!areasLoaded) {
+                        log('WS areas not received in time. Falling back to HTTP.');
+                        loadAreasViaHTTP();
+                    }
+                }, 1500);
+            } else {
+                // If WS isn't available, use HTTP straight away
+                log('WS not open when loading areas. Using HTTP.');
+                loadAreasViaHTTP();
             }
         }
 
@@ -604,19 +710,60 @@
 
             areas.forEach(area => {
                 const option = document.createElement('option');
-                option.value = area.area_id;
+                option.value = sanitize(area.name);
                 option.textContent = area.name;
                 select.appendChild(option);
             });
+
+            if (!areas || areas.length === 0) {
+                // Provide a sensible default if user hasn't configured Areas in HA
+                const option = document.createElement('option');
+                option.value = 'home';
+                option.textContent = 'Home';
+                select.appendChild(option);
+                showAlert('No Areas found in Home Assistant. Using a default "Home" room. You can add Areas in Settings → Areas & Zones.', 'info');
+            }
 
             // Restore previously selected value if it exists
             if (currentValue) {
                 select.value = currentValue;
             }
 
+            // If still not selected, choose the first real option and trigger change
+            if (!select.value) {
+                const firstOption = Array.from(select.options).find(opt => opt.value);
+                if (firstOption) {
+                    select.value = firstOption.value;
+                    // Trigger dependent updates
+                    select.dispatchEvent(new Event('change'));
+                }
+            }
+
             log(`Found ${areas.length} areas/rooms`);
-            // Restore settings after areas are loaded
-            loadFromStorage();
+            areasLoaded = true;
+        }
+
+        async function loadAreasViaHTTP() {
+            try {
+                // Prefer the REST areas endpoint
+                const response = await fetch(`${haUrl}/api/areas`, {
+                    headers: {
+                        'Authorization': `Bearer ${haToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const areas = await response.json();
+                if (Array.isArray(areas)) {
+                    // Normalize in case REST returns a different structure
+                    const normalized = areas.map(a => ({ name: a.name || a.area_id || 'Unnamed' }));
+                    populateAreas(normalized);
+                } else {
+                    log('HTTP /api/areas returned unexpected format.');
+                }
+            } catch (e) {
+                log(`Failed to load areas via HTTP: ${e.message}`, 'error');
+            }
         }
 
         async function loadBroadlinkDevices() {
@@ -650,6 +797,56 @@
             }
         }
 
+        async function fetchLearnedCommands() {
+            const deviceEntityId = document.getElementById('broadlinkDevice').value;
+            if (!deviceEntityId) {
+                log('Cannot fetch commands, no Broadlink device selected.');
+                return;
+            }
+
+            log('Fetching all learned commands...');
+            try {
+                const response = await fetch(`${haUrl}/api/services/broadlink_plus/list_commands?return_response=true`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${haToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ entity_id: deviceEntityId })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // The actual commands are nested under the service_response key in the response
+                log(`Raw response from list_commands: ${JSON.stringify(data, null, 2)}`);
+                if (data && data.service_response) {
+                    // The service returns a dictionary where the key is the device name from the service call.
+                    // We can just grab the first (and only) value from the response.
+                    allLearnedCommands = data.service_response;
+                    if (Object.keys(allLearnedCommands).length > 0) {
+                        log(`Successfully fetched ${Object.keys(allLearnedCommands).length} total learned command groups.`);
+                        log(`Available command groups: ${Object.keys(allLearnedCommands).join(', ')}`);
+                        log(`Full command data: ${JSON.stringify(allLearnedCommands, null, 2)}`);
+                    } else {
+                         allLearnedCommands = {};
+                         log('No learned commands found in the service response.');
+                    }
+                } else {
+                    allLearnedCommands = {};
+                    log('No service_response found or data is invalid.');
+                }
+
+            } catch (error) {
+                log(`Error fetching learned commands: ${error.message}`, 'error');
+                showAlert('Could not fetch learned commands.', 'error');
+                allLearnedCommands = {}; // Reset on error
+            }
+        }
+
         // --- WebSocket Logic ---
         function connectWebSocket() {
             if (wsConnection && wsConnection.readyState === WebSocket.OPEN) return;
@@ -669,7 +866,6 @@
             wsConnection.onopen = function() {
                 log('WebSocket connection established.');
                 wsConnection.send(JSON.stringify({ type: "auth", access_token: haToken }));
-                loadAreas(); // Fetch areas once connected
             };
             
             wsConnection.onmessage = function(event) {
@@ -677,6 +873,8 @@
                 
                 if (data.type === "auth_ok") {
                     log('WebSocket authenticated');
+                    // Now that we're authenticated, we can safely load areas (rooms)
+                    loadAreas();
                 } else if (data.type === "result" && data.success) {
                     // This handles results that are not arrays, like persistent_notification list
                     if (Array.isArray(data.result)) {
@@ -886,31 +1084,31 @@
         // --- UI and Template Functions ---
         function loadTemplate() {
             if (!selectedTemplate) {
-                showAlert('Please select a template first', 'error');
+                showAlert('Please select a template first.', 'error');
                 return;
             }
             const templateCommands = templates[selectedTemplate];
-            commands = templateCommands.map(cmd => ({
-                name: cmd,
-                status: 'pending',
-                fullName: generateFullCommandName(cmd)
-            }));
-            updateCommandList();
-            updateProgress();
-            log(`Loaded ${templateCommands.length} commands from ${selectedTemplate} template`);
-            saveToStorage();
+            if (!templateCommands) {
+                showAlert('Invalid template selected.', 'error');
+                return;
+            }
+
+            // Clear existing commands and load from template
+            commands = templateCommands.map(name => ({ name: name, status: 'pending' }));
+            log(`Loaded ${commands.length} commands from '${selectedTemplate}' template.`);
+            
+            // Now, trigger the population logic which will handle both new and existing devices
+            populateCommandsForSelectedRoom();
         }
 
         function getDeviceFullName() {
-            const roomSelect = document.getElementById('roomName');
-            const selectedOption = roomSelect.options[roomSelect.selectedIndex];
-            const room = selectedOption ? selectedOption.textContent.toLowerCase().replace(/\s+/g, '_') : '';
-            const device = document.getElementById('deviceName').value;
+            const room = document.getElementById('roomName').value; // This is already sanitized from populateAreas
+            const device = sanitize(document.getElementById('deviceName').value);
             return `${room}_${device}`;
         }
 
-        function generateFullCommandName(command) {
-            return `${getDeviceFullName()}_${command}`;
+        function generateFullCommandName(commandName) {
+            return `${getDeviceFullName()}_${commandName}`;
         }
 
         function addCommand() {
@@ -1027,23 +1225,43 @@
         async function testCommand(index) {
             const command = commands[index];
             const deviceEntityId = document.getElementById('broadlinkDevice').value;
-             if (command.status !== 'learned') {
+
+            if (command.status !== 'learned') {
                 showAlert('Command must be learned before testing', 'error');
                 return;
             }
+
+            if (!currentDeviceKey) {
+                showAlert('No device context is set. Please select a room and device first.', 'error');
+                log('Error: currentDeviceKey is not set. Cannot test command.', 'error');
+                return;
+            }
+
             try {
-                await fetch(`${haUrl}/api/services/remote/send_command`, {
+                const payload = {
+                    entity_id: deviceEntityId,
+                    device: currentDeviceKey,
+                    command: command.name
+                };
+
+                log(`Sending test command with payload: ${JSON.stringify(payload, null, 2)}`);
+                const response = await fetch(`${haUrl}/api/services/remote/send_command`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${haToken}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        entity_id: deviceEntityId,
-                        device: document.getElementById('deviceName').value,
-                        command: command.fullName
-                    })
+                    body: JSON.stringify(payload)
                 });
-                log(`Successfully sent: ${command.fullName}`);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+
+                log(`Successfully sent test command for: ${command.fullName}`);
+                showAlert(`Test command for '${command.name}' sent successfully!`, 'success');
+
             } catch (error) {
                 log(`Failed to send ${command.fullName}: ${error.message}`, 'error');
+                showAlert(`Failed to send test command: ${error.message}`, 'error');
             }
         }
 
