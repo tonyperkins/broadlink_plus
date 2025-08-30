@@ -1,0 +1,217 @@
+type: grid
+columns: 3
+title: Tony's Office Ceiling Fan
+square: false
+cards:
+  # Light Controls Row
+  - type: button
+    name: Light On
+    icon: mdi:lightbulb-on
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: light_on
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #FFD700, #FFA500);
+          color: #000;
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  - type: button
+    name: Light Off
+    icon: mdi:lightbulb-off
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: light_off
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #666666, #999999);
+          color: white;
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  - type: button
+    name: Fan Off
+    icon: mdi:fan-off
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_off
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #FF4444, #CC0000);
+          color: white;
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  # Fan Speed Controls Row 1
+  - type: button
+    name: Speed 1
+    icon: mdi:numeric-1-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_1
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  - type: button
+    name: Speed 2
+    icon: mdi:numeric-2-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_2
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  - type: button
+    name: Speed 3
+    icon: mdi:numeric-3-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_3
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  # Fan Speed Controls Row 2
+  - type: button
+    name: Speed 4
+    icon: mdi:numeric-4-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_4
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  - type: button
+    name: Speed 5
+    icon: mdi:numeric-5-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_5
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+  - type: button
+    name: Speed 6
+    icon: mdi:numeric-6-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_6
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
+          border-radius: 15px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        ha-card:active {
+          transform: scale(0.95);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }

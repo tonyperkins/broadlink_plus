@@ -1,0 +1,19 @@
+type: custom:mushroom-fan-card
+entity: fan.tony_office_ceiling_fan
+name: Tony's Ceiling Fan
+icon: mdi:ceiling-fan
+show_percentage_control: true
+show_oscillate_control: false
+use_fan_mode: false
+collapsible_controls: false
+card_mod:
+  style: |
+    ha-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      color: white;
+    }
+    mushroom-fan-percentage-control {
+      --mushroom-fan-percentage-control-bg: rgba(255, 255, 255, 0.2);
+      --mushroom-fan-percentage-control-active-bg: rgba(255, 255, 255, 0.3);
+    }

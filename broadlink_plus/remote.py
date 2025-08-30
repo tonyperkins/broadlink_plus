@@ -121,12 +121,12 @@ class BroadlinkRemote(BroadlinkEntity, RemoteEntity, RestoreEntity):
 
         message = "\n".join(message_list) if message_list else "No commands have been learned for this device."
 
-        persistent_notification.async_create(
-            self.hass,
-            message,
-            title=f"{self.name} Stored Commands",
-            notification_id=f"broadlink_commands_{self.unique_id}",
-        )
+        # persistent_notification.async_create(
+        #     self.hass,
+        #     message,
+        #     title=f"{self.name} Stored Commands",
+        #     notification_id=f"broadlink_commands_{self.unique_id}",
+        # )
 
         result = {}
         for device_name, commands in stored_codes.items():

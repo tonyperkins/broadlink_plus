@@ -1,0 +1,185 @@
+type: grid
+columns: 4
+title: Tony's Office Ceiling Fan
+square: false
+cards:
+  # Light Controls
+  - type: button
+    name: 💡 On
+    icon: mdi:lightbulb-on
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: light_on
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #FFD700;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  - type: button
+    name: 💡 Off
+    icon: mdi:lightbulb-off
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: light_off
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #666666;
+          color: white;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Off
+  - type: button
+    name: 🛑 Fan
+    icon: mdi:fan-off
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_off
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #FF4444;
+          color: white;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Speed 1
+  - type: button
+    name: 1
+    icon: mdi:numeric-1-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_1
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #E3F2FD;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Speed 2
+  - type: button
+    name: 2
+    icon: mdi:numeric-2-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_2
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #E3F2FD;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Speed 3
+  - type: button
+    name: 3
+    icon: mdi:numeric-3-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_3
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #E3F2FD;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Speed 4
+  - type: button
+    name: 4
+    icon: mdi:numeric-4-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_4
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #E3F2FD;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Speed 5
+  - type: button
+    name: 5
+    icon: mdi:numeric-5-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_5
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #E3F2FD;
+          border-radius: 10px;
+          padding: 8px;
+        }
+
+  # Fan Speed 6
+  - type: button
+    name: 6
+    icon: mdi:numeric-6-circle-outline
+    tap_action:
+      action: call-service
+      service: remote.send_command
+      data:
+        entity_id: remote.broadlink_plus
+        device: tony_s_office_ceiling_fan
+        command: fan_speed_6
+    show_state: false
+    card_mod:
+      style: |
+        ha-card {
+          background: #E3F2FD;
+          border-radius: 10px;
+          padding: 8px;
+        }

@@ -1,0 +1,105 @@
+# Template Fan for Tony's Office Ceiling Fan
+fan:
+  - platform: template
+    fans:
+      tony_office_ceiling_fan:
+        friendly_name: "Tony's Office Ceiling Fan"
+        value_template: "{{ states('input_select.fan_speed') != 'off' }}"
+        percentage_template: >
+          {% set speed_map = {
+            'off': 0,
+            'low': 17,
+            'medium': 33,
+            'high': 50,
+            'speed_1': 17,
+            'speed_2': 33,
+            'speed_3': 50,
+            'speed_4': 67,
+            'speed_5': 83,
+            'speed_6': 100
+          } %}
+          {{ speed_map.get(states('input_select.fan_speed'), 0) }}
+        turn_on:
+          service: input_select.select_option
+          data:
+            entity_id: input_select.fan_speed
+            option: speed_1
+        turn_off:
+          service: remote.send_command
+          data:
+            entity_id: remote.broadlink_plus
+            device: tony_s_office_ceiling_fan
+            command: fan_off
+        set_percentage:
+          service: script.fan_set_speed
+          data:
+            speed: "{{ percentage }}"
+        speed_count: 6
+        supported_features:
+          - TURN_ON
+          - TURN_OFF
+          - SET_SPEED
+
+# Input Select for tracking fan speed
+input_select:
+  fan_speed:
+    name: Fan Speed
+    options:
+      - off
+      - speed_1
+      - speed_2
+      - speed_3
+      - speed_4
+      - speed_5
+      - speed_6
+    initial: off
+    icon: mdi:fan
+
+# Scripts for fan control
+script:
+  fan_set_speed:
+    alias: Set Fan Speed
+    sequence:
+      - service: input_select.select_option
+        data:
+          entity_id: input_select.fan_speed
+          option: >
+            {% set speed = percentage | int %}
+            {% if speed <= 16 %} off
+            {% elif speed <= 25 %} speed_1
+            {% elif speed <= 41 %} speed_2
+            {% elif speed <= 58 %} speed_3
+            {% elif speed <= 74 %} speed_4
+            {% elif speed <= 91 %} speed_5
+            {% else %} speed_6
+            {% endif %}
+      - service: remote.send_command
+        data:
+          entity_id: remote.broadlink_plus
+          device: tony_s_office_ceiling_fan
+          command: "fan_speed_{{ states('input_select.fan_speed').split('_')[1] }}"
+    mode: single
+
+  fan_light_toggle:
+    alias: Toggle Fan Light
+    sequence:
+      - service: remote.send_command
+        data:
+          entity_id: remote.broadlink_plus
+          device: tony_s_office_ceiling_fan
+          command: >
+            {% if is_state('input_boolean.fan_light', 'on') %}
+              light_off
+            {% else %}
+              light_on
+            {% endif %}
+      - service: input_boolean.toggle
+        data:
+          entity_id: input_boolean.fan_light
+
+# Input Boolean for tracking light state
+input_boolean:
+  fan_light:
+    name: Fan Light
+    initial: off
+    icon: mdi:lightbulb
